@@ -17,7 +17,5 @@ def main():
     Path("ops/hitl_kappa.json").write_text(json.dumps(out, indent=2))
     print(out)
 
-if __name__ == "__main__"
-
 if __name__ == "__main__":
     main()
