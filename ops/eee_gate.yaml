@@ -1,0 +1,7 @@
+eee_gate:
+  threshold_score: 0.7
+  max_p95_time_to_evidence_sec: 7200
+  critical_dps: ["E1.*","S1.*","G1.*","Taxonomy.Art8.*"]
+  override_role: "Head Compliance"
+  require_four_eyes: true
+  artifacts: ["eee/eee_report.json","raga/kpis.json","raga/explain.json","xbrl/informe.xbrl"]
