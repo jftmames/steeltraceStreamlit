@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Data & outputs
+data/raw/
+*.tsq
+*.tsr
+tokens/
+verify/
+*.zip
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
