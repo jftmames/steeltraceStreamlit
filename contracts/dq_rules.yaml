@@ -1,0 +1,11 @@
+dq:
+  completeness:
+    - { field: "kwh", rule: "not_null" }
+    - { field: "period_start", rule: "not_null" }
+  validity:
+    - { field: "period_start", rule: "is_date" }
+    - { field: "kwh", rule: ">=0" }
+  consistency:
+    - { rule: "period_start <= period_end" }
+  timeliness:
+    - { field: "period_end", rule: "within_month('2024-01')" }
