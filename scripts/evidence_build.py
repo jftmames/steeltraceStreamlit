@@ -22,7 +22,7 @@ def main():
 
     man = build_manifest(ARTIFACTS, RUN_ID)
     man["created_utc"] = datetime.utcnow().isoformat() + "Z"
-    token = {  # TSA simulada
+    token = {
         "tsa": "SIMULATED-TSA",
         "ts_utc": datetime.utcnow().isoformat() + "Z",
         "merkle_root": man["merkle_root"]
