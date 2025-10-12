@@ -43,6 +43,7 @@ def load_file_content(file_path: Path):
         # Retorna la cadena de texto
         return file_path.read_text(encoding="utf-8")
     except FileNotFoundError:
+        # Devuelve None si el archivo no existe (seguro para la lógica de visualización)
         return None
     except Exception as e:
         return f"Error al leer {file_path.name}: {e}"
@@ -186,7 +187,7 @@ def main():
 
             st.code(validation_content if validation_content is not None else "Log de validación no generado.", language="markdown")
             
-            # CORRECCIÓN DE NoneType object is not subscriptable:
+            # CORRECCIÓN DE NoneType object is not subscriptable (Línea 180):
             if linaje_content:
                 st.code(linaje_content[:1000], language="turtle")
             else:
@@ -212,7 +213,10 @@ def main():
         # 5. Evidencias y XBRL (Pasos 5 & 6)
         with st.expander("✅ Evidencias (Merkle) y XBRL (Salida Verificable)"):
             st.code(load_file_content(OUTPUT_PATH / "evidence" / "evidence_manifest.json"), language="json")
-            st.code(load_file_content(OUTPUT_PATH / "xbrl" / "validation.log"))
+            
+            xbrl_val_content = load_file_content(OUTPUT_PATH / "xbrl" / "validation.log")
+            # CORRECCIÓN DE NoneType object is not subscriptable (Línea 205):
+            st.code(xbrl_val_content if xbrl_val_content is not None else "Log de validación XBRL no generado.", language="text")
 
         # 6. HITL Kappa (Paso 7)
         with st.expander("✅ HITL: Acuerdo Inter-Evaluador (Kappa de Cohen)"):
