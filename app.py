@@ -3,132 +3,200 @@ import json
 from pathlib import Path
 import subprocess
 import os
-import pandas as pd
-from datetime import datetime
+import glob
 
 # --- Configuración de Paths ---
-# Asegúrate de que el CWD es la raíz del repo
+# Asegura que el Directorio de Trabajo Actual (CWD) sea la raíz del repositorio
 ROOT_DIR = Path(__file__).parent.resolve()
 os.chdir(ROOT_DIR)
 
-PIPELINE_SCRIPT = ROOT_DIR / "scripts" / "pipeline_run.py"
-DQ_REPORT_FILE  = ROOT_DIR / "data" / "dq_report.json"
-KPI_FILE        = ROOT_DIR / "raga" / "kpis.json"
-EEE_REPORT_FILE = ROOT_DIR / "ops" / "gate_report.json"
-SLO_REPORT_FILE = ROOT_DIR / "ops" / "slo_report.json"
-HITL_REPORT_FILE = ROOT_DIR / "ops" / "hitl_kappa.json"
+DATA_PATH = ROOT_DIR / "data" / "samples"
+OUTPUT_PATH = ROOT_DIR 
+SAMPLE_FILES = [f.name for f in DATA_PATH.glob("*.json")]
 
-def load_json(path: Path):
+# --- Utilidades ---
+
+def load_file_content(file_path: Path):
+    """Carga y retorna el contenido de un archivo como texto o JSON."""
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        if file_path.suffix.lower() == '.json' or file_path.suffix.lower() == '.jsonl':
+            # Intenta cargar el contenido como texto para mostrarlo en un bloque de código
+            return file_path.read_text(encoding="utf-8")
+        else:
+            # Para logs o otros formatos
+            return file_path.read_text(encoding="utf-8")
     except FileNotFoundError:
+        st.warning(f"El archivo {file_path.name} aún no existe. Ejecuta el paso anterior.")
         return None
-    except json.JSONDecodeError:
-        st.error(f"Error al decodificar JSON en: {path}")
+    except Exception as e:
+        st.error(f"Error al leer {file_path.name}: {e}")
         return None
 
-# Definimos una función para ejecutar el pipeline.
-# Usamos st.cache_data para evitar la reejecución en cada interacción de Streamlit,
-# pero el botón "Ejecutar Pipeline" forzará una limpieza del caché.
-@st.cache_data
-def run_pipeline():
-    """Ejecuta el script de orquestación del pipeline."""
-    st.info(f"Ejecutando pipeline completo... Esto tomará unos segundos.")
+def run_script_and_capture_output(script_name):
+    """Ejecuta un script del pipeline y captura el output."""
+    script_path = ROOT_DIR / "scripts" / script_name
+    st.info(f"Ejecutando: `python {script_name}`...")
     
     try:
-        # Llama al script pipeline_run.py
         result = subprocess.run(
-            ["python", str(PIPELINE_SCRIPT)],
-            capture_output=True, text=True, check=True
+            ["python", str(script_path)],
+            capture_output=True, 
+            text=True, 
+            check=True, # Lanza CalledProcessError si el código de retorno no es cero
+            timeout=10 # Tiempo límite de ejecución
         )
-        st.success("Pipeline ejecutado correctamente.")
+        st.success("✅ Ejecución completada con éxito.")
         return result.stdout
     except subprocess.CalledProcessError as e:
-        st.error(f"El pipeline falló. Revisa los errores en la terminal.")
-        st.code(e.stderr)
+        st.error(f"❌ Error en la ejecución de {script_name}")
+        st.code(f"STDOUT:\n{e.stdout}\n\nSTDERR:\n{e.stderr}", language="bash")
+        return None
+    except FileNotFoundError:
+        st.error(f"❌ Script no encontrado en la ruta: {script_path}")
         return None
 
 # --- Interfaz Streamlit ---
-st.set_page_config(layout="wide", page_title="STEELTRACE™ CSRD+AI PoC Reporte")
+st.set_page_config(layout="wide", page_title="STEELTRACE™ CSRD+AI - PoC")
 
-st.title("STEELTRACE™ CSRD+AI - Reporte de Validación 📊")
-st.markdown("Verificación de la Gobernanza, DQ y Trazabilidad del PoC.")
+st.title("STEELTRACE™ CSRD+AI - Dashboard de Validación 🧪")
+st.markdown("Guía interactiva para la consultora: inspección de datos y ejecución paso a paso del pipeline de trazabilidad y gobernanza.")
 
-# Botón para iniciar/re-ejecutar el pipeline
-if st.button("Ejecutar Pipeline y Recargar Reportes", help="Esto ejecuta scripts/pipeline_run.py y actualiza todos los reportes."):
-    run_pipeline.clear() # Limpia el caché para forzar la reejecución
-    run_pipeline()
+# Pestañas principales
+data_tab, pipeline_tab = st.tabs(["📂 1. Datos de Entrada (Data Inspection)", "⚙️ 2. Pipeline Interactivo (Ejecución y Artefactos)"])
 
-# --- Carga y Muestra de Artefactos ---
-
-st.header("1. Control de Publicación (EEE-Gate)")
-eee_report = load_json(EEE_REPORT_FILE)
-
-if eee_report:
-    col1, col2, col3 = st.columns(3)
+# ----------------------------------------
+# PESTAÑA 1: DATOS DE ENTRADA
+# ----------------------------------------
+with data_tab:
+    st.header("Inspección de Archivos de Muestra")
+    st.markdown("Los archivos JSON en `data/samples/` son la fuente de datos (E1, S1, G1).")
     
-    with col1:
-        st.metric("Decisión Global", eee_report["global_decision"].upper(),
-                  help="Basado en el EEE-Score y el Threshold (0.70)")
-    with col2:
-        eee_score = eee_report["eee_score"]
-        delta_val = eee_score - eee_report["threshold"]
-        st.metric("EEE-Score", f"{eee_score:.4f}", f"{delta_val:.4f} vs Threshold",
-                  delta_color=("inverse" if eee_score < eee_report["threshold"] else "normal"))
-    with col3:
-        ep_score = eee_report["components"]["epistemic"]
-        ex_score = eee_report["components"]["explicit"]
-        ev_score = eee_report["components"]["evidence"]
-        st.markdown(f"**Ponderaciones (Ep:0.4, Ex:0.3, Ev:0.3)**")
-        st.progress(ep_score, text=f"Epistemicidad ({ep_score:.2f})")
-        st.progress(ex_score, text=f"Explicitación ({ex_score:.2f})")
-        st.progress(ev_score, text=f"Evidencia ({ev_score:.2f})")
+    # Sidebar para selección de archivo
+    st.sidebar.header("Archivos de Muestra")
+    selected_file_name = st.sidebar.selectbox(
+        "Selecciona un archivo JSON:",
+        SAMPLE_FILES,
+        index=0
+    )
     
-    st.subheader("Detalle por KPI (RAGA)")
-    kpi_data = load_json(KPI_FILE)
-    if kpi_data:
-        # Combina KPIs con las decisiones del gate
-        kpi_list = [{"DP": d["dp"], "Valor": kpi_data.get(d["dp"]), "Decisión EEE": d["decision"]} 
-                    for d in eee_report["details"]]
-        st.dataframe(kpi_list, use_container_width=True, hide_index=True)
+    if selected_file_name:
+        file_path = DATA_PATH / selected_file_name
+        st.subheader(f"Contenido de: `{selected_file_name}`")
+        
+        content = file_path.read_text(encoding='utf-8')
+        try:
+            # Si es JSON, mostrarlo como objeto interactivo
+            st.json(json.loads(content))
+        except:
+            # Si no es JSON válido (o si la lectura falla), mostrarlo como código
+            st.code(content, language="json")
+
+        # Expander para ver los Contratos
+        with st.expander("Ver Contrato/Schema Relacionado (`contracts/`):"):
+            if "energy" in selected_file_name:
+                schema_path = ROOT_DIR / "contracts" / "erp_energy.schema.json"
+            elif "hr" in selected_file_name:
+                schema_path = ROOT_DIR / "contracts" / "hr_people.schema.json"
+            elif "ethics" in selected_file_name:
+                schema_path = ROOT_DIR / "contracts" / "ethics_cases.schema.json"
+            else:
+                st.info("Esquema no encontrado.")
+                schema_path = None
+            
+            if schema_path and schema_path.exists():
+                st.code(load_file_content(schema_path), language="json")
+            else:
+                st.warning(f"Esquema {schema_path.name if schema_path else 'N/A'} no disponible.")
 
 
-st.header("2. Data Quality (DQ) y Conformidad")
-dq_report = load_json(DQ_REPORT_FILE)
-if dq_report:
-    st.metric("DQ Global Pass", str(dq_report["dq_pass"]), help="True si todos los dominios pasan el 95% DQ.")
+# ----------------------------------------
+# PESTAÑA 2: PIPELINE INTERACTIVO
+# ----------------------------------------
+with pipeline_tab:
+    st.header("Ejecución Paso a Paso del Pipeline de Gobernanza")
+    st.markdown("Cada paso genera artefactos intermedios (logs, normalizados, KPIs).")
     
-    # Muestra tasas agregadas por dominio
-    dq_summary = {
-        dom: {
-            "Conformidad": str(rep["dq"]["aggregate"]["dq_pass"]),
-            "Completitud": f"{rep['dq']['aggregate']['completeness']:.2f}",
-            "Validez": f"{rep['dq']['aggregate']['validity']:.2f}",
-            "Consistencia": f"{rep['dq']['aggregate']['consistency']:.2f}",
-            "Temporalidad": f"{rep['dq']['aggregate']['timeliness']:.2f}"
-        } for dom, rep in dq_report["domains"].items()
-    }
-    st.subheader("Tasas Agregadas por Dominio")
-    st.dataframe(dq_summary, use_container_width=True)
+    # --- PASO 1: MCP - Ingestión y Data Quality ---
+    st.subheader("1️⃣ MCP — Ingesta, Validación de Schema y DQ")
+    if st.button("▶️ Ejecutar Ingestión/DQ (`mcp_ingest.py`)"):
+        with st.spinner("Cargando, validando y normalizando los 3 datasets..."):
+            output = run_script_and_capture_output("mcp_ingest.py")
+            if output:
+                with st.expander("Ver Logs del Script"):
+                    st.code(output, language="python")
+                
+                st.markdown("---")
+                st.success("Archivos Normalizados y de Reporte Generados:")
+                
+                col_n1, col_n2 = st.columns(2)
+                with col_n1:
+                    st.json(load_file_content(OUTPUT_PATH / "data" / "dq_report.json"))
+                with col_n2:
+                    st.code(load_file_content(OUTPUT_PATH / "data" / "lineage.jsonl"), language="json")
 
-st.header("3. Observabilidad (SLO p95) y Gobernanza (HITL)")
-slo_report = load_json(SLO_REPORT_FILE)
-hitl_report = load_json(HITL_REPORT_FILE)
+    # --- PASO 2: SHACL - Validación Semántica ---
+    st.subheader("2️⃣ SHACL — Validación Semántica (Ontología + Trazabilidad RDF)")
+    if st.button("▶️ Ejecutar SHACL (`shacl_validate.py`)"):
+        with st.spinner("Creando grafo RDF y validando contra SHACL E1/S1/G1..."):
+            output = run_script_and_capture_output("shacl_validate.py")
+            if output:
+                with st.expander("Ver Logs y Reporte de Conformidad"):
+                    st.code(load_file_content(OUTPUT_PATH / "ontology" / "validation.log"), language="markdown")
+                
+                st.success("Linaje RDF (TTL) generado. Muestra de trazabilidad:")
+                st.code(load_file_content(OUTPUT_PATH / "ontology" / "linaje.ttl")[:1000], language="turtle")
 
-if slo_report:
-    st.subheader("Métricas de Servicio (SLO p95)")
-    # El script pipeline_run.py escribe agg como un diccionario, lo cargamos como DataFrame
-    slo_df = pd.DataFrame(slo_report["agg"]).T
-    slo_df.columns = ["Conteo", "P95 (segundos)", "Media (segundos)"]
-    st.dataframe(slo_df, use_container_width=True)
 
-if hitl_report:
-    st.subheader("Acuerdo Inter-Evaluador (HITL)")
-    mean_kappa = hitl_report.get("kappa_mean", "N/A")
-    st.metric("Kappa de Cohen (Media)", f"{mean_kappa}", 
-              help="Mide la concordancia entre los revisores humanos (Target: >0.70)")
-    st.write("**Detalle de Kappa (por par):**")
-    st.json(hitl_report["kappas"])
+    # --- PASO 3: RAGA - Cálculo de KPIs y Explicaciones ---
+    st.subheader("3️⃣ RAGA — KPIs E1/S1/G1 y Explicaciones (RAG)")
+    if st.button("▶️ Ejecutar RAGA (`raga_compute.py`)"):
+        with st.spinner("Calculando KPIs y generando explicaciones (hipótesis/evidencia/citas)..."):
+            output = run_script_and_capture_output("raga_compute.py")
+            if output:
+                with st.expander("Ver Logs del Script"):
+                    st.code(output)
+                
+                st.success("KPIs y Explicación Generados:")
+                col_k1, col_k2 = st.columns(2)
+                with col_k1:
+                    st.json(load_file_content(OUTPUT_PATH / "raga" / "kpis.json"))
+                with col_k2:
+                    st.json(load_file_content(OUTPUT_PATH / "raga" / "explain.json"))
 
-st.markdown("---")
-st.warning("Para auditoría: Ver el paquete ZIP generado en `release/audit/` que contiene todos los artefactos firmados con Merkle Root.")
+
+    # --- PASO 4: EEE-GATE - Decisión de Gobernanza ---
+    st.subheader("4️⃣ EEE-Gate — Scoring (Epistémico/Explícito/Evidencia) y Decisión")
+    if st.button("▶️ Ejecutar EEE-Gate (`eee_gate.py`)"):
+        with st.spinner("Evaluando el EEE-Score y determinando Publish/Review/Block..."):
+            output = run_script_and_capture_output("eee_gate.py")
+            if output:
+                with st.expander("Ver Logs del Script"):
+                    st.code(output)
+                
+                st.success("Reporte de Gate Generado:")
+                st.json(load_file_content(OUTPUT_PATH / "ops" / "gate_report.json"))
+                
+                st.info("La decisión final se basa en la validación de Artefactos de Evidencia (Paso 6).")
+
+
+    # --- PASO 5 & 6: XBRL, Evidencias (Merkle) y Release Package ---
+    st.subheader("5️⃣ y 6️⃣ XBRL y Evidencias (WORM/Merkle/TSA Simulada)")
+    
+    if st.button("▶️ Ejecutar XBRL y Evidencias Finales"):
+        with st.spinner("Generando XBRL, construyendo el Merkle Tree y sellando las evidencias..."):
+            # Generar XBRL
+            xbrl_output = run_script_and_capture_output("xbrl_generate.py")
+            # Construir Evidencias (Merkle Root)
+            evidence_output = run_script_and_capture_output("evidence_build.py")
+            # Generar Paquete de Release
+            package_output = run_script_and_capture_output("package_release.py")
+
+            with st.expander("Ver Manifiesto de Evidencias (WORM)"):
+                st.code(load_file_content(OUTPUT_PATH / "evidence" / "evidence_manifest.json"), language="json")
+
+            st.success("Artefactos Finales Generados:")
+            st.code(package_output)
+            
+            # Muestra el resultado de la validación XBRL
+            st.info("Validación XBRL (Schema) Reporte:")
+            st.code(load_file_content(OUTPUT_PATH / "xbrl" / "validation.log"))
