@@ -4,6 +4,7 @@ import os
 import sys
 import json
 from pathlib import Path
+import glob
 
 # --- Configuración General ---
 st.set_page_config(
@@ -43,7 +44,6 @@ def load_file_content(file_path: Path):
         # Retorna la cadena de texto
         return file_path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        # Devuelve None si el archivo no existe (seguro para la lógica de visualización)
         return None
     except Exception as e:
         return f"Error al leer {file_path.name}: {e}"
@@ -187,7 +187,6 @@ def main():
 
             st.code(validation_content if validation_content is not None else "Log de validación no generado.", language="markdown")
             
-            # CORRECCIÓN DE NoneType object is not subscriptable (Línea 180):
             if linaje_content:
                 st.code(linaje_content[:1000], language="turtle")
             else:
@@ -215,7 +214,6 @@ def main():
             st.code(load_file_content(OUTPUT_PATH / "evidence" / "evidence_manifest.json"), language="json")
             
             xbrl_val_content = load_file_content(OUTPUT_PATH / "xbrl" / "validation.log")
-            # CORRECCIÓN DE NoneType object is not subscriptable (Línea 205):
             st.code(xbrl_val_content if xbrl_val_content is not None else "Log de validación XBRL no generado.", language="text")
 
         # 6. HITL Kappa (Paso 7)
@@ -224,7 +222,19 @@ def main():
 
         # 7. Paquete Final (Paso 8)
         with st.expander("📦 Paquete de Auditoría ZIP"):
-             st.code(load_file_content(OUTPUT_PATH / "release" / "audit") if (OUTPUT_PATH / "release" / "audit").exists() else "El paquete final ZIP se crea en release/audit/ (Ver logs del último paso)")
+            audit_dir = OUTPUT_PATH / "release" / "audit"
+            
+            if audit_dir.is_dir():
+                # Lógica corregida para listar archivos ZIP, no leer el directorio
+                zip_files = [f.name for f in audit_dir.glob("*.zip")]
+                
+                if zip_files:
+                    st.success("✅ Paquete de Auditoría ZIP generado.")
+                    st.code(f"Archivos ZIP encontrados en 'release/audit/':\n{'\n'.join(zip_files)}", language="text")
+                else:
+                    st.info("El directorio de auditoría existe, pero aún no se ha generado el archivo ZIP (Ejecute el Paso 8).")
+            else:
+                 st.warning("El directorio 'release/audit' aún no ha sido creado. Ejecute los pasos del pipeline.")
 
 
 # Ejecutar la aplicación principal
