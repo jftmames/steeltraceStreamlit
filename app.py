@@ -5,8 +5,7 @@ import subprocess
 import os
 import sys
 
-# --- Configuración de Paths ---
-# Asegura que el Directorio de Trabajo Actual (CWD) sea la raíz del repositorio
+
 ROOT_DIR = Path(__file__).parent.resolve()
 os.chdir(ROOT_DIR)
 
@@ -33,17 +32,18 @@ def load_file_content(file_path: Path):
         return None
 
 def run_script_and_capture_output(script_name):
-    """Ejecuta un script del pipeline y captura el output."""
+    """Ejecuta un script del pipeline usando el intérprete de Python correcto."""
     script_path = ROOT_DIR / "scripts" / script_name
-    st.info(f"Ejecutando: `python {script_name}`...")
+    st.info(f"Ejecutando: `{sys.executable} {script_name}`...") # Muestra el path completo del intérprete
     
     try:
+        # CORRECCIÓN CLAVE: Usar sys.executable para garantizar que se usa el VENV de Streamlit
         result = subprocess.run(
-            ["python", str(script_path)],
+            [sys.executable, str(script_path)], # <<< CAMBIO AQUÍ
             capture_output=True, 
             text=True, 
-            check=True, # Lanza CalledProcessError si el código de retorno no es cero
-            timeout=10 # Tiempo límite de ejecución
+            check=True,
+            timeout=10
         )
         st.success("✅ Ejecución completada con éxito.")
         return result.stdout
