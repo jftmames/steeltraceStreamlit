@@ -22,3 +22,8 @@ Arquitectura reproducible para cumplimiento CSRD/ESRS y AI Act con:
 ## Licencias
 - Código: MIT (LICENSE)
 - Documentación: CC BY 4.0 (LICENSE-CC-BY-4.0.txt)
+
+## Ejecutar en Binder
+
+[![Launch Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/TUUSUARIO/steeltrace-csrd-ai/HEAD?labpath=scripts%2Fsteeltrace_lab.ipynb)
+
