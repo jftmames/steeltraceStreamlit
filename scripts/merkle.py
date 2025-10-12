@@ -6,8 +6,7 @@ def sha256_file(path: str | Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 def merkle_root_from_hashes(hashes: list[str]) -> str:
-    if not hashes:
-        return ""
+    if not hashes: return ""
     level = [h.encode("utf-8") for h in hashes]
     while len(level) > 1:
         nxt = []
@@ -25,7 +24,3 @@ def build_manifest(artifacts: list[str], run_id: str) -> dict:
         rows.append({"path": a, "sha256": sha})
     root = merkle_root_from_hashes([r["sha256"] for r in rows])
     return {"run_id": run_id, "artifacts": rows, "merkle_root": f"SHA256:{root}"}
-
-if __name__ == "__main__":
-    import sys
-    print("Usage: import and call build_manifest([...], run_id)")
