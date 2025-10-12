@@ -22,22 +22,17 @@ def main():
 
     man = build_manifest(ARTIFACTS, RUN_ID)
     man["created_utc"] = datetime.utcnow().isoformat() + "Z"
-    # “TSA simulada”: token de texto plano con el merkle_root y un sello UTC
-    token = {
+    token = {  # TSA simulada
         "tsa": "SIMULATED-TSA",
         "ts_utc": datetime.utcnow().isoformat() + "Z",
         "merkle_root": man["merkle_root"]
     }
-
     man["tsa_tokens"] = [token]
-    out = Path("evidence/evidence_manifest.json")
-    out.write_text(json.dumps(man, indent=2, ensure_ascii=False))
 
-    # “Verificación” simulada
+    Path("evidence/evidence_manifest.json").write_text(json.dumps(man, indent=2, ensure_ascii=False))
     Path("evidence/tokens/2025Q1.tsr").write_text(json.dumps(token, indent=2))
     Path("evidence/verify/2025Q1.txt").write_text("Verification: OK (simulated)\n")
-
-    print("Evidence manifest →", out)
+    print("Evidence manifest → evidence/evidence_manifest.json")
 
 if __name__ == "__main__":
     main()
