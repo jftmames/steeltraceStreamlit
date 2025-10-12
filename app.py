@@ -18,26 +18,29 @@ os.chdir(ROOT_DIR)
 
 DATA_PATH = ROOT_DIR / "data" / "samples"
 OUTPUT_PATH = ROOT_DIR 
-SAMPLE_FILES = [f.name for f in DATA_PATH.glob("*.json")]
+# Usar glob para asegurar que encontramos los archivos incluso si hay un pequeño retraso
+try:
+    SAMPLE_FILES = [f.name for f in DATA_PATH.glob("*.json")]
+except FileNotFoundError:
+    SAMPLE_FILES = []
 
 # Listado de scripts del pipeline en orden de ejecución
 PIPELINE_SCRIPTS = [
-    "mcp_ingest.py",      # 1. Ingesta y Normalización
-    "shacl_validate.py",  # 2. Validación Semántica
-    "raga_compute.py",    # 3. Cálculo de RAGA
-    "eee_gate.py",        # 4. Evaluación de Riesgos (EEE Gate)
-    "xbrl_generate.py",   # 5. Generación XBRL
-    "evidence_build.py",  # 6. Construcción de la Evidencia (Merkle Tree)
-    "hitl_kappa.py",      # 7. Evaluación HITL
-    "package_release.py"  # 8. Empaquetado final
+    "mcp_ingest.py",
+    "shacl_validate.py",
+    "raga_compute.py",
+    "eee_gate.py",
+    "xbrl_generate.py",
+    "evidence_build.py",
+    "hitl_kappa.py",
+    "package_release.py"
 ]
 
 # --- Utilidades ---
 
 def load_file_content(file_path: Path):
-    """Carga y retorna el contenido de un archivo como texto o JSON."""
+    """Carga y retorna el contenido de un archivo como texto (UTF-8)."""
     try:
-        # Nota: Usamos read_text para la visualización en Streamlit.
         return file_path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return None
@@ -52,16 +55,17 @@ def run_script_and_capture_output(script_name):
     
     # 1. Mostrar la información de ejecución
     with st.spinner(f"Ejecutando script: **{script_name}**..."):
+        # Muestra el path del intérprete de Streamlit
         st.code(f"Comando: {sys.executable} {script_name}", language="bash")
 
         try:
-            # CORRECCIÓN CLAVE: Usar sys.executable
+            # CORRECCIÓN CLAVE: Usar sys.executable para que encuentre 'pandas'
             result = subprocess.run(
                 [sys.executable, str(script_path)], 
                 capture_output=True, 
                 text=True, 
                 check=True,
-                timeout=60 # Aumentado el timeout por seguridad
+                timeout=60
             )
             st.success(f"✅ Ejecución de **{script_name}** completada con éxito.")
             st.info("Salida del script (STDOUT):")
@@ -77,7 +81,7 @@ def run_script_and_capture_output(script_name):
             return None
             
         except FileNotFoundError:
-            st.error(f"❌ Error: No se encontró el script **{script_name}**.")
+            st.error(f"❌ Error: No se encontró el script **{script_name}**. Verifique que existe en la carpeta `scripts/`.")
             return None
         except subprocess.TimeoutExpired:
             st.error(f"❌ Error: El script **{script_name}** excedió el tiempo límite de ejecución.")
@@ -107,10 +111,10 @@ def main():
         selected_file_name = st.sidebar.selectbox(
             "Selecciona un archivo JSON:",
             SAMPLE_FILES,
-            index=0
+            index=0 if SAMPLE_FILES else 0
         )
         
-        if selected_file_name:
+        if selected_file_name and SAMPLE_FILES:
             file_path = DATA_PATH / selected_file_name
             st.subheader(f"Contenido de: `{selected_file_name}`")
             
@@ -135,6 +139,8 @@ def main():
                     st.code(load_file_content(schema_path), language="json")
                 else:
                     st.warning(f"Esquema no disponible.")
+        elif not SAMPLE_FILES:
+             st.warning("No se encontraron archivos de muestra en `data/samples/`. Verifique la estructura del repositorio.")
 
 
     # ----------------------------------------
@@ -144,7 +150,7 @@ def main():
         st.header("Ejecución Paso a Paso del Pipeline de Gobernanza")
         st.markdown("Presiona los botones en orden para generar los artefactos de cumplimiento.")
 
-        # Estado para guardar logs
+        # Estado para guardar logs (no utilizado en este modelo, pero útil para depuración)
         if 'execution_logs' not in st.session_state:
             st.session_state.execution_logs = {}
 
@@ -154,9 +160,8 @@ def main():
             st.subheader(f"Paso {i+1}: {script}")
             
             # Botón para la ejecución individual
-            if st.button(f"▶️ Ejecutar {script}", key=f"run_btn_{i}", type="secondary"):
-                output = run_script_and_capture_output(script)
-                st.session_state.execution_logs[script] = output
+            if st.button(f"▶️ Ejecutar {script}", key=f"run_btn_{i}", type="secondary", help="Ejecuta el script y muestra los logs de salida."):
+                run_script_and_capture_output(script)
         
         st.divider()
 
@@ -197,7 +202,7 @@ def main():
 
         # 7. Paquete Final (Paso 8)
         with st.expander("📦 Paquete de Auditoría ZIP"):
-             st.code("El paquete final ZIP se crea en release/audit/ (Ver logs del último paso)")
+             st.code(load_file_content(OUTPUT_PATH / "release" / "audit") if (OUTPUT_PATH / "release" / "audit").exists() else "El paquete final ZIP se crea en release/audit/ (Ver logs del último paso)")
 
 
 # Ejecutar la aplicación principal
