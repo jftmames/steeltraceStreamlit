@@ -1,0 +1,7 @@
+@prefix ex: <http://example.com/esrs#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+ex:Entidad rdf:type rdf:Property .
+ex:DatapointESRS rdf:type rdf:Property .
+ex:Evidencia rdf:type rdf:Property .
+ex:KPI rdf:type rdf:Property .
