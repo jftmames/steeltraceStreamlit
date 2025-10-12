@@ -1,5 +1,3 @@
-# Requisitos mínimos para el MVP-LAB (solo stdlib en scripts)
-# Si más adelante usas RDF/SHACL reales, añade: rdflib, pyshacl, jsonschema, pandas
 jsonschema
 pandas
 rdflib
