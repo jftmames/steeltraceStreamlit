@@ -14,8 +14,10 @@ def main():
         kappas[f"{a}-{b}"] = round(ka, 3)
     mean_k = round(sum(kappas.values())/len(kappas), 3)
     out = {"kappas": kappas, "kappa_mean": mean_k, "n": len(df)}
-    Path("ops/hitl_kappa.json").write_text(str(out))
+    Path("ops/hitl_kappa.json").write_text(json.dumps(out, indent=2))
     print(out)
+
+if __name__ == "__main__"
 
 if __name__ == "__main__":
     main()
