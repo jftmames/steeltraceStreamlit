@@ -4,7 +4,6 @@ import os
 import sys
 import json
 from pathlib import Path
-import glob
 
 # --- Configuración General ---
 st.set_page_config(
@@ -60,7 +59,7 @@ def run_script_and_capture_output(script_name):
         st.code(f"Comando: {sys.executable} {script_name}", language="bash")
 
         try:
-            # CORRECCIÓN CLAVE: Usar sys.executable para que encuentre todas las dependencias
+            # Usar sys.executable para que encuentre todas las dependencias
             result = subprocess.run(
                 [sys.executable, str(script_path)], 
                 capture_output=True, 
@@ -225,12 +224,26 @@ def main():
             audit_dir = OUTPUT_PATH / "release" / "audit"
             
             if audit_dir.is_dir():
-                # Lógica corregida para listar archivos ZIP, no leer el directorio
-                zip_files = [f.name for f in audit_dir.glob("*.zip")]
+                zip_files = [f for f in audit_dir.glob("*.zip")]
                 
                 if zip_files:
-                    st.success("✅ Paquete de Auditoría ZIP generado.")
-                    st.code(f"Archivos ZIP encontrados en 'release/audit/':\n{'\n'.join(zip_files)}", language="text")
+                    st.success("✅ Paquete de Auditoría ZIP generado. ¡Descarga para auditar!")
+                    
+                    for zip_file_path in zip_files:
+                        try:
+                            # Leer el contenido del archivo como bytes (esencial para ZIPs)
+                            zip_bytes = zip_file_path.read_bytes()
+                            
+                            # Crear el botón de descarga para Streamlit
+                            st.download_button(
+                                label=f"⬇️ Descargar: {zip_file_path.name}",
+                                data=zip_bytes,
+                                file_name=zip_file_path.name,
+                                mime="application/zip",
+                                key=zip_file_path.name
+                            )
+                        except Exception as e:
+                            st.error(f"Error al preparar la descarga de {zip_file_path.name}: {e}")
                 else:
                     st.info("El directorio de auditoría existe, pero aún no se ha generado el archivo ZIP (Ejecute el Paso 8).")
             else:
