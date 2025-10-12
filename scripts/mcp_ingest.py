@@ -4,6 +4,7 @@ from datetime import datetime
 import pandas as pd
 from jsonschema import Draft202012Validator
 from utils_hash import sha256_file, sha256_json, write_json
+import yaml # pyyaml es necesario para load_yaml
 
 # -------- Config --------
 SAMPLES = {
@@ -52,7 +53,9 @@ def apply_rule(row: dict, rule: dict, domain: str) -> bool:
         return is_yyyy_mm(str(row.get(field, "")))
     if name == ">=0":
         try:
-            return float(row.get(field, 0)) >= 0
+            val = row.get(field)
+            if val is None: return False
+            return float(val) >= 0
         except Exception:
             return False
     if name and name.startswith("within_month("):
@@ -80,7 +83,7 @@ def apply_rule(row: dict, rule: dict, domain: str) -> bool:
             return int(row.get("closed_with_resolution", 0)) <= int(row.get("cases_closed", 0))
         except Exception:
             return False
-    return True  # default: pass
+    return True
 
 def evaluate_dq(records: list[dict], rules: dict, domain: str) -> dict:
     res = {"completeness": [], "validity": [], "consistency": [], "timeliness": []}
@@ -96,9 +99,6 @@ def evaluate_dq(records: list[dict], rules: dict, domain: str) -> dict:
 
 # -------- Load DQ rules --------
 def load_yaml(path: str) -> dict:
-    # Simple YAML loader without pyyaml (para mantener deps mínimas en este bloque)
-    # Muy básico: asume YAML sencillo con indentación estándar → en Binder este parser básico sirve.
-    import yaml  # si prefieres, añade 'pyyaml' a requirements y usamos yaml.safe_load directamente
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
@@ -169,7 +169,6 @@ def main():
     lineage_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     # 6) Reporte DQ agregado
-    # Promedio de las 4 categorías por dominio y decisión global
     def ok(dom):
         agg = dq_summary[dom]["dq"]["aggregate"]
         return all(agg[k] >= 0.95 for k in ["completeness","validity","consistency","timeliness"])
@@ -188,4 +187,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
