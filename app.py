@@ -18,7 +18,6 @@ os.chdir(ROOT_DIR)
 
 DATA_PATH = ROOT_DIR / "data" / "samples"
 OUTPUT_PATH = ROOT_DIR 
-# Usar glob para asegurar que encontramos los archivos incluso si hay un pequeño retraso
 try:
     SAMPLE_FILES = [f.name for f in DATA_PATH.glob("*.json")]
 except FileNotFoundError:
@@ -39,8 +38,9 @@ PIPELINE_SCRIPTS = [
 # --- Utilidades ---
 
 def load_file_content(file_path: Path):
-    """Carga y retorna el contenido de un archivo como texto (UTF-8)."""
+    """Carga y retorna el contenido de un archivo como texto (UTF-8) o None si no existe."""
     try:
+        # Retorna la cadena de texto
         return file_path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return None
@@ -59,7 +59,7 @@ def run_script_and_capture_output(script_name):
         st.code(f"Comando: {sys.executable} {script_name}", language="bash")
 
         try:
-            # CORRECCIÓN CLAVE: Usar sys.executable para que encuentre 'pandas'
+            # CORRECCIÓN CLAVE: Usar sys.executable para que encuentre todas las dependencias
             result = subprocess.run(
                 [sys.executable, str(script_path)], 
                 capture_output=True, 
@@ -83,13 +83,23 @@ def run_script_and_capture_output(script_name):
         except FileNotFoundError:
             st.error(f"❌ Error: No se encontró el script **{script_name}**. Verifique que existe en la carpeta `scripts/`.")
             return None
-        except subprocess.TimeoutExpired:
-            st.error(f"❌ Error: El script **{script_name}** excedió el tiempo límite de ejecución.")
-            return None
         except Exception as e:
             st.error(f"❌ Error inesperado al ejecutar **{script_name}**: {e}")
             return None
 
+def safe_json_display(content):
+    """Muestra contenido JSON o un mensaje de advertencia si es None o inválido."""
+    if content is None:
+        st.warning("Archivo de salida aún no generado o no encontrado. Ejecuta el paso correspondiente.")
+        return
+    try:
+        # Intenta cargar la cadena como objeto JSON (requerido por st.json)
+        st.json(json.loads(content))
+    except json.JSONDecodeError:
+        st.warning("Contenido no es JSON válido. Mostrando como texto simple:")
+        st.code(content, language="text")
+    except Exception:
+         st.code(content, language="text")
 
 # --- Interfaz de Streamlit ---
 
@@ -97,7 +107,6 @@ def main():
     st.title("⚙️ SteelTrace: Pipeline de Procesamiento CSRD")
     st.markdown("Guía interactiva para la consultora: inspección de datos y ejecución paso a paso del pipeline de trazabilidad y gobernanza.")
 
-    # Pestañas principales
     data_tab, pipeline_tab = st.tabs(["📂 1. Datos de Entrada (Data Inspection)", "⚙️ 2. Pipeline Interactivo (Ejecución y Artefactos)"])
 
     # ----------------------------------------
@@ -150,16 +159,12 @@ def main():
         st.header("Ejecución Paso a Paso del Pipeline de Gobernanza")
         st.markdown("Presiona los botones en orden para generar los artefactos de cumplimiento.")
 
-        # Estado para guardar logs (no utilizado en este modelo, pero útil para depuración)
         if 'execution_logs' not in st.session_state:
             st.session_state.execution_logs = {}
-
-        # --- ORQUESTADOR: Ejecución de Scripts ---
         
         for i, script in enumerate(PIPELINE_SCRIPTS):
             st.subheader(f"Paso {i+1}: {script}")
             
-            # Botón para la ejecución individual
             if st.button(f"▶️ Ejecutar {script}", key=f"run_btn_{i}", type="secondary", help="Ejecuta el script y muestra los logs de salida."):
                 run_script_and_capture_output(script)
         
@@ -171,25 +176,38 @@ def main():
 
         # 1. Reporte DQ y Linaje (Paso 1)
         with st.expander("✅ Ingesta/Data Quality (DQ) y Linaje"):
-            st.json(load_file_content(OUTPUT_PATH / "data" / "dq_report.json"))
+            safe_json_display(load_file_content(OUTPUT_PATH / "data" / "dq_report.json"))
             st.code(load_file_content(OUTPUT_PATH / "data" / "lineage.jsonl"), language="json")
 
         # 2. Validación Semántica (Paso 2)
         with st.expander("✅ Validación SHACL y Grafo RDF (Trazabilidad Semántica)"):
-            st.code(load_file_content(OUTPUT_PATH / "ontology" / "validation.log"), language="markdown")
-            st.code(load_file_content(OUTPUT_PATH / "ontology" / "linaje.ttl")[:1000], language="turtle")
+            validation_content = load_file_content(OUTPUT_PATH / "ontology" / "validation.log")
+            linaje_content = load_file_content(OUTPUT_PATH / "ontology" / "linaje.ttl")
+
+            st.code(validation_content if validation_content is not None else "Log de validación no generado.", language="markdown")
+            
+            # CORRECCIÓN DE NoneType object is not subscriptable:
+            if linaje_content:
+                st.code(linaje_content[:1000], language="turtle")
+            else:
+                 st.info("El Linaje RDF (TTL) aún no ha sido generado. Ejecute el Paso 2.")
 
         # 3. KPIs y Explicación RAGA (Paso 3)
         with st.expander("✅ RAGA: KPIs y Explicaciones (Hipótesis/Evidencia)"):
+            kpis_content = load_file_content(OUTPUT_PATH / "raga" / "kpis.json")
+            explain_content = load_file_content(OUTPUT_PATH / "raga" / "explain.json")
+            
             col_k1, col_k2 = st.columns(2)
             with col_k1:
-                st.json(load_file_content(OUTPUT_PATH / "raga" / "kpis.json"))
+                st.subheader("KPIs")
+                safe_json_display(kpis_content)
             with col_k2:
-                st.json(load_file_content(OUTPUT_PATH / "raga" / "explain.json"))
+                st.subheader("Explicación RAGA")
+                safe_json_display(explain_content)
 
         # 4. Decisión del EEE-Gate (Paso 4)
         with st.expander("✅ EEE-Gate: Decisión de Publicación"):
-            st.json(load_file_content(OUTPUT_PATH / "ops" / "gate_report.json"))
+            safe_json_display(load_file_content(OUTPUT_PATH / "ops" / "gate_report.json"))
 
         # 5. Evidencias y XBRL (Pasos 5 & 6)
         with st.expander("✅ Evidencias (Merkle) y XBRL (Salida Verificable)"):
@@ -198,7 +216,7 @@ def main():
 
         # 6. HITL Kappa (Paso 7)
         with st.expander("✅ HITL: Acuerdo Inter-Evaluador (Kappa de Cohen)"):
-            st.json(load_file_content(OUTPUT_PATH / "ops" / "hitl_kappa.json"))
+            safe_json_display(load_file_content(OUTPUT_PATH / "ops" / "hitl_kappa.json"))
 
         # 7. Paquete Final (Paso 8)
         with st.expander("📦 Paquete de Auditoría ZIP"):
