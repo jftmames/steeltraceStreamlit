@@ -1,0 +1,7 @@
+materiality:
+  E1:
+    impact_threshold: 0.6
+    financial_threshold: 0.5
+residuals:
+  low: 0.01
+  medium: 0.05
