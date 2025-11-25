@@ -1,8 +1,8 @@
-jsonschema
-pandas
-rdflib
-pyshacl
-lxml
-scikit-learn
-pyyaml
 streamlit
+pandas
+numpy
+pydantic
+requests
+openai   # o el cliente del proveedor LLM que uses
+faiss-cpu  # o similar, para vector store ligero (opcional)
+
